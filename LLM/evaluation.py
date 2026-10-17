@@ -14,10 +14,6 @@ from LLM.layer5_classification import VulnerabilityClassifier
 def default_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
-    if hasattr(torch, "accelerator") and torch.accelerator.is_available():
-        accelerator = torch.accelerator.current_accelerator(check_available=True)
-        if accelerator is not None:
-            return accelerator
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
