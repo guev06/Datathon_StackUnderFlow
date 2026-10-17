@@ -1,0 +1,12 @@
+assets/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
