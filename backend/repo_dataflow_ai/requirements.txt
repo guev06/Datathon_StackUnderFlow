@@ -1,4 +1,19 @@
-torch>=2.4
-transformers>=4.56
-accelerate>=1.0
+# Server
+fastapi>=0.115
+uvicorn[standard]>=0.30
 click>=8.1
+
+# IBM Granite on llama.cpp (default engine). On Apple Silicon install with CMAKE_ARGS="-DGGML_METAL=on".
+llama-cpp-python>=0.3.8
+huggingface_hub>=0.25
+
+# Dataflow-role classifier: scikit-learn training, ONNX export and inference
+scikit-learn>=1.5
+skl2onnx>=1.17
+onnxruntime>=1.19
+numpy>=1.26
+
+# Optional: Transformers engine (FLOWSTATE_ENGINE=transformers, e.g. Qwen2.5-Coder)
+# torch>=2.4
+# transformers>=4.56
+# accelerate>=1.0

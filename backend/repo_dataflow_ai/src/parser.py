@@ -65,6 +65,13 @@ def parse_file(path):
             })
         elif isinstance(node, (ast.Assign, ast.AnnAssign)):
             info["assignments"].append(_assignment(node))
+    # Scripts do their work at module level; list what that code calls so the model can follow it.
+    script_calls = [
+        ast.unparse(n.func) for stmt in tree.body
+        if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom))
+        for n in ast.walk(stmt) if isinstance(n, ast.Call)
+    ]
+    info["script_calls"] = list(dict.fromkeys(script_calls))[:40]
     return info
 
 
@@ -96,6 +103,8 @@ def format_structure(structure):
             for cls in info["classes"]:
                 lines.append(cls["name"])
                 lines.extend(f"    {method}" for method in cls["methods"])
+            if info.get("script_calls"):
+                lines.append(f"# top-level code calls: {', '.join(info['script_calls'])}")
         lines.append("")
     return "\n".join(lines)
 

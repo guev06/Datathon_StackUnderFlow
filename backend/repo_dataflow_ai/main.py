@@ -29,10 +29,10 @@ def main(repo_path, output):
     click.echo(f"Found {len(summary)} Python files.", err=True)
 
     # Imported here so --help and argument errors respond instantly instead of waiting for torch to load.
-    from src.model_engine import ModelEngine
+    from src.model_engine import load_engine
 
     click.echo("Loading model (the first run downloads the weights) ...", err=True)
-    engine = ModelEngine()
+    engine = load_engine()
 
     click.echo("Generating dataflow report ...", err=True)
     report = generate_dataflow(engine, summary)

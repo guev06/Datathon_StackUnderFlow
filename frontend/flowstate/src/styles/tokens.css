@@ -1,0 +1,36 @@
+:root {
+  /* Neutrals */
+  --bg: #f7f5f0;
+  --bg-raised: #fbfaf7;
+  --surface: #ffffff;
+  --border: #e6e2d9;
+  --border-strong: #d6d1c5;
+  --text: #2b2a27;
+  --text-muted: #6f6b62;
+  --text-faint: #9c978c;
+
+  /* Pastel accents */
+  --sky: #c9d8f0;
+  --lilac: #e2d4f0;
+  --rose: #f3d6dc;
+  --peach: #f6dccb;
+  --sage: #d3e5d3;
+  --butter: #f3ead0;
+
+  --grad-accent: linear-gradient(120deg, var(--sky), var(--lilac) 40%, var(--rose) 70%, var(--peach));
+  --grad-soft: linear-gradient(135deg, #eef3fb, #f6eff8 50%, #fbf0ea);
+
+  /* Type */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(43, 42, 39, 0.05);
+  --shadow: 0 8px 30px rgba(43, 42, 39, 0.08), 0 1px 3px rgba(43, 42, 39, 0.06);
+  --shadow-lg: 0 24px 60px rgba(43, 42, 39, 0.14), 0 2px 6px rgba(43, 42, 39, 0.06);
+
+  --container: 1200px;
+}
