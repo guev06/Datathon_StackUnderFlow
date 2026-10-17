@@ -1,0 +1,5 @@
+.footer { border-top: 1px solid var(--border); padding: 32px 0; font-size: 13px; color: var(--text-muted); }
+.footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.footer nav { display: flex; gap: 24px; }
+.footer nav a:hover { color: var(--text); }
+.footer-copy { color: var(--text-faint); }
