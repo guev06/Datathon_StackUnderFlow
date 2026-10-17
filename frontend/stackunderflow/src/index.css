@@ -1,0 +1,107 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #34332f;
+  background: #f1efe9;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --app-bg: #f1efe9;
+  --surface: #f8f6f1;
+  --canvas-bg: #f3f1eb;
+  --ink: #34332f;
+  --muted: #6f706d;
+  --line: #dedbd2;
+  --accent: #56616b;
+  --accent-solid: #46515a;
+  --accent-hover: #37434c;
+  --error: #a9494c;
+  --error-border: #e4ceca;
+  --error-surface: #f7eeea;
+  --surface-hover: #eeece5;
+  --surface-soft: #f3f1eb;
+  --surface-note: #f1eee6;
+  --surface-tint: #e8e6de;
+  --surface-control: #f7f5ef;
+  --note-border: #dfdbd1;
+  --note-text: #62645f;
+  --field-border: #d5d2c9;
+  --field-text: #34332f;
+  --field-muted: #7c7d77;
+  --canvas-dot: #d8d5cc;
+  --node-fill: #f8f6f1;
+  --node-selected-fill: #eeece5;
+  --branch-border: #d6d3ca;
+  --code-fill: #eeece5;
+  --code-text: #454640;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  font-optical-sizing: auto;
+  font-weight: 400;
+}
+
+.app-shell[data-theme="dark"] {
+  color-scheme: dark;
+  --app-bg: #11131a;
+  --surface: #191c25;
+  --canvas-bg: #141720;
+  --ink: #eceefa;
+  --muted: #a0a6ba;
+  --line: #2a2e3b;
+  --accent: #9cceff;
+  --accent-solid: #5d7f9f;
+  --accent-hover: #766de5;
+  --error: #ff8991;
+  --error-border: #56343c;
+  --error-surface: #2a2028;
+  --surface-hover: #222631;
+  --surface-soft: #20232e;
+  --surface-note: #211f34;
+  --surface-tint: #292640;
+  --surface-control: #1c202a;
+  --note-border: #36334e;
+  --note-text: #b9b9cb;
+  --field-border: #383d4d;
+  --field-text: #e2e5f4;
+  --field-muted: #9299ae;
+  --canvas-dot: #303448;
+  --node-fill: #202430;
+  --node-selected-fill: #2a2741;
+  --branch-border: #3a3e4e;
+  --code-fill: #151720;
+  --code-text: #d5d8eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #7770df;
+  outline-offset: 3px;
+}
+
+::selection {
+  color: var(--ink);
+  background: #7970de66;
+}
