@@ -51,8 +51,8 @@ export const flowchartSymbols = [
 
 function createNumberCheckFlowchart(fileName) {
   return {
-    title: "Number check",
-    description: "A sample flowchart using common flowchart symbols.",
+    title: fileName || "Number check",
+    description: "Static number-check preview. Uploaded code is not analyzed yet.",
     sourceFile: fileName,
     isMockOutput: true,
     nodes: [
@@ -76,6 +76,6 @@ function createNumberCheckFlowchart(fileName) {
   };
 }
 
-export const initialFlowchart = createNumberCheckFlowchart("");
+export const initialFlowchart = createNumberCheckFlowchart("number_check.py");
 
 export { createNumberCheckFlowchart };

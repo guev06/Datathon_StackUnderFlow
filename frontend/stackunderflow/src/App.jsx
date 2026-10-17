@@ -78,6 +78,15 @@ function Icon({ name, size = 18 }) {
 
 function App() {
   const [flowchart, setFlowchart] = useState(initialFlowchart);
+  const [workspaceFiles, setWorkspaceFiles] = useState([
+    {
+      id: "number_check.py",
+      name: "number_check.py",
+      source: "",
+      isSample: true,
+    },
+  ]);
+  const [activeView, setActiveView] = useState("chart");
   const [isDark, setIsDark] = useState(
     () => localStorage.getItem("flowstate-theme") === "dark",
   );
@@ -88,6 +97,11 @@ function App() {
   const [isCanvasScrolled, setIsCanvasScrolled] = useState(false);
   const fileInputRef = useRef(null);
 
+  function openWorkspace() {
+    setActiveView("workspace");
+    setUploadStatus("");
+  }
+
   function toggleTheme() {
     setIsDark((current) => {
       const next = !current;
@@ -97,9 +111,44 @@ function App() {
   }
 
   function showMockPreview(fileName, source, status) {
+    const id = fileName.toLowerCase();
+    setWorkspaceFiles((files) => {
+      const existingFile = files.find((file) => file.id === id);
+      const nextFile = {
+        id,
+        name: fileName,
+        source,
+        isSample: existingFile?.isSample ?? false,
+      };
+      return existingFile
+        ? files.map((file) => (file.id === id ? nextFile : file))
+        : [...files, nextFile];
+    });
     setFlowchart(createNumberCheckFlowchart(fileName));
     setSourceCode(source);
     setUploadStatus(status);
+    setActiveView("chart");
+  }
+
+  async function openWorkspaceFile(file) {
+    try {
+      let source = file.source;
+      if (file.isSample && !source) {
+        const response = await fetch("/samples/number_check.py");
+        if (!response.ok) {
+          throw new Error(`The sample returned HTTP ${response.status}.`);
+        }
+        source = await response.text();
+      }
+      showMockPreview(
+        file.name,
+        source,
+        `Opened ${file.name}. The chart is a static preview; code is not analyzed or executed.`,
+      );
+      setSourceOpen(true);
+    } catch (error) {
+      setUploadStatus(`Could not open ${file.name}: ${error.message}`);
+    }
   }
 
   async function loadSourceFile(file) {
@@ -174,7 +223,12 @@ function App() {
   return (
     <main className="app-shell" data-theme={isDark ? "dark" : "light"}>
       <header className="topbar">
-        <a className="brand" href="#workspace" aria-label="Flowstate home">
+        <button
+          className="brand"
+          onClick={openWorkspace}
+          aria-label="Open Flowstate workspace"
+          type="button"
+        >
           <span>
             <img
               src={flowStateLogo}
@@ -185,17 +239,38 @@ function App() {
           <span>
             flow<span className="brand-accent">state</span>
           </span>
-        </a>
+        </button>
         <div className="topbar-divider" />
         <nav className="breadcrumbs" aria-label="Breadcrumb">
-          <a href="#workspace">My workspace</a>
-          <Icon name="chevron" size={14} />
-          <span>{flowchart.title}</span>
+          <button
+            className={activeView === "workspace" ? "is-current" : ""}
+            onClick={openWorkspace}
+            type="button"
+          >
+            My workspace
+          </button>
+          {activeView === "chart" && (
+            <>
+              <Icon name="chevron" size={14} />
+              <span>{flowchart.sourceFile || flowchart.title}</span>
+            </>
+          )}
         </nav>
         <div className="topbar-actions">
-          {flowchart.sourceFile && (
+          {activeView === "chart" && flowchart.sourceFile && (
             <span className="source-file-name">{flowchart.sourceFile}</span>
           )}
+          <input
+            accept=".py,.txt,text/plain"
+            className="file-input"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void loadSourceFile(file);
+              event.target.value = "";
+            }}
+            ref={fileInputRef}
+            type="file"
+          />
           <button
             aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
             className="theme-toggle"
@@ -209,10 +284,54 @@ function App() {
       </header>
 
       <section
-        className={`workspace${sourceOpen ? " source-open" : ""}${symbolsOpen ? "" : " symbols-collapsed"}`}
+        className={`workspace${activeView === "workspace" ? " home-view" : ""}${sourceOpen ? " source-open" : ""}${symbolsOpen ? "" : " symbols-collapsed"}`}
         id="workspace"
         aria-label="Flowchart workspace"
       >
+        {activeView === "workspace" ? (
+          <section className="workspace-home" aria-labelledby="workspace-title">
+            <div className="workspace-home-heading">
+              <div>
+                <span className="eyebrow">YOUR FILES</span>
+                <h1 id="workspace-title">My workspace</h1>
+                <p>Open a file to view its source and flowchart preview.</p>
+              </div>
+              <button
+                className="upload-button"
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+              >
+                <Icon name="upload" size={16} />
+                <span>Add file</span>
+              </button>
+            </div>
+            {uploadStatus && (
+              <p className="workspace-status" role="status">
+                {uploadStatus}
+              </p>
+            )}
+            <div className="workspace-file-list" aria-label="Workspace files">
+              {workspaceFiles.map((file) => (
+                <button
+                  className="workspace-file"
+                  key={file.id}
+                  onClick={() => void openWorkspaceFile(file)}
+                  type="button"
+                >
+                  <span className="workspace-file-icon" aria-hidden="true">
+                    {file.name.split(".").pop()?.toUpperCase() || "FILE"}
+                  </span>
+                  <span className="workspace-file-details">
+                    <strong>{file.name}</strong>
+                    <span>{file.isSample ? "Sample file" : "Uploaded file"} · Flowchart preview available</span>
+                  </span>
+                  <Icon name="chevron" size={17} />
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <>
         <aside
           className={`source-sidebar${sourceOpen ? "" : " is-collapsed"}`}
           aria-label="Source code"
@@ -260,17 +379,6 @@ function App() {
               <p>{flowchart.description}</p>
             </div>
             <div className="editor-actions">
-              <input
-                accept=".py,.txt,text/plain"
-                className="file-input"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void loadSourceFile(file);
-                  event.target.value = "";
-                }}
-                ref={fileInputRef}
-                type="file"
-              />
               <button
                 className="upload-button"
                 onClick={() => fileInputRef.current?.click()}
@@ -451,6 +559,8 @@ function App() {
             </div>
           )}
         </aside>
+          </>
+        )}
       </section>
     </main>
   );

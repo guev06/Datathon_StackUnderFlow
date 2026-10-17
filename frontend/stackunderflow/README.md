@@ -21,8 +21,10 @@ The sample flow and standard symbol catalog are defined in
 file.
 
 Uploaded source is read locally and can be viewed in the collapsible source
-panel. There is no code parsing or execution: uploads currently preview the
-static number-check flow. The included sample is
+panel. Uploaded files are kept in the workspace for the current browser
+session. Select any listed file to open its filename, source, and flowchart
+preview. There is no code parsing or execution: uploaded files currently
+preview the static number-check flow. The included sample is
 `public/samples/number_check.py`.
 
 The flow model contains a title, description, read-only nodes, and SVG-path
