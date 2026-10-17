@@ -12,7 +12,7 @@ export default function CallToAction() {
         <h2>
           Paint a picture <span className="serif">of your codebase.</span>
         </h2>
-        <p>Free for public repositories. Teams plans for private code.</p>
+        <p>Free for public repositories.</p>
         <RepoInput />
       </div>
     </section>

@@ -3,12 +3,66 @@
 Paste any public **Python** GitHub repo and get an AI-generated, interactive dataflow map of it. Click any step
 (or any function inside a step) to see the exact source code behind it.
 
-```bash
-./backend/start.sh          # builds the frontend and serves everything on http://localhost:8000
+## Run on Windows
+
+The integrated app has a FastAPI backend and a Vite frontend. Run the backend
+first in one PowerShell terminal, then the frontend in another. The Vite
+development server proxies `/api` calls to the backend.
+
+### One-time setup
+
+Prerequisites: Git, Node.js with npm, and Python 3.12.
+
+From the repository root, install Python if needed and create the backend
+environment:
+
+```powershell
+winget install --id Python.Python.3.12 --exact --scope user --silent --accept-source-agreements --accept-package-agreements
+
+$repo = (Get-Location).Path
+$python = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
+& $python --version
+& $python -m venv "$repo\backend\.venv"
+& "$repo\backend\.venv\Scripts\python.exe" -m pip install --upgrade pip
+& "$repo\backend\.venv\Scripts\python.exe" -m pip install fastapi "uvicorn[standard]" click huggingface_hub scikit-learn skl2onnx onnxruntime numpy
 ```
 
-The first run creates `backend/.venv`, installs dependencies, and downloads IBM Granite (~1.5 GB).
-Analysing a new repo takes about a minute on a laptop. Results are cached per commit.
+Install and build the integrated frontend:
+
+```powershell
+Set-Location "$repo\frontend\flowstate"
+npm ci
+npm run build
+```
+
+### Start the app
+
+**Terminal 1 — backend** (from any directory):
+
+```powershell
+$repo = "C:\path\to\Datathon_StackUnderFlow"
+Set-Location "$repo\backend\repo_dataflow_ai"
+& "$repo\backend\.venv\Scripts\python.exe" -m uvicorn server:app --host 127.0.0.1 --port 8000
+```
+
+**Terminal 2 — frontend development server**:
+
+```powershell
+$repo = "C:\path\to\Datathon_StackUnderFlow"
+Set-Location "$repo\frontend\flowstate"
+npm run dev -- --host 127.0.0.1
+```
+
+Open <http://127.0.0.1:5173>. The backend also serves the production frontend
+after the build at <http://127.0.0.1:8000>. Check backend readiness at
+<http://127.0.0.1:8000/api/health>.
+
+The Windows setup above was verified for serving the UI and backend health
+endpoint. Installing all packages from `requirements.txt` also installs
+`llama-cpp-python`; its source build can fail on Windows when long paths are
+disabled. The Granite model weights are downloaded on first AI analysis.
+Analysing a new repo takes about a minute on a laptop. Results are cached per
+commit.
 
 ## How it works
 
@@ -70,8 +124,6 @@ agrees with scikit-learn on 99.8% of predictions. The output is `artifacts/role_
 | `FLOWSTATE_GGUF` | Granite 3.3 2B Q4_K_M | Path to another GGUF, e.g. Granite 3.3 8B for better graphs (slower) |
 | `FLOWSTATE_HF_MODEL` | `Qwen/Qwen2.5-Coder-1.5B-Instruct` | Model for the transformers engine |
 | `PORT` | `8000` | |
-
-Frontend dev with hot reload: run the backend, then `cd frontend/flowstate && npm run dev` (it proxies `/api` to :8000).
 
 The original CLI still works: `python main.py --repo-path <folder> --output report.md`.
 
