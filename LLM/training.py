@@ -26,20 +26,24 @@ def train(
     learning_rate: float = 3e-4,
     device: str | torch.device | None = None,
     test_data: str | PathLike[str] | None = None,
+    max_windows_per_function: int | None = 8,
 ) -> list[dict[str, float]]:
-    """Train on PrimeVul and save checkpoint and reports in ``LLM/runs``."""
+    """Train on PrimeVul with a per-function window cap and save run artifacts."""
     if epochs < 1:
         raise ValueError("epochs must be at least 1")
     if batch_size < 1:
         raise ValueError("batch_size must be at least 1")
     if learning_rate <= 0:
         raise ValueError("learning_rate must be positive")
+    if max_windows_per_function is not None and max_windows_per_function < 1:
+        raise ValueError("max_windows_per_function must be at least 1")
 
     train_path = Path(train_data)
     val_path = Path(val_data)
     test_path = Path(test_data) if test_data is not None else None
     target_device = torch.device(device) if device is not None else default_device()
     model.to(target_device)
+    print(f"Training device: {target_device}")
 
     runs_directory = Path(__file__).resolve().parent / "runs"
     runs_directory.mkdir(parents=True, exist_ok=True)
@@ -53,8 +57,19 @@ def train(
         except FileExistsError:
             run_number += 1
 
+    print(f"Counting training labels in {train_path}", flush=True)
     negative_count, positive_count = count_targets(train_path)
     total_count = negative_count + positive_count
+    print(
+        f"Training data: {total_count} records "
+        f"({negative_count} negative, {positive_count} positive)",
+        flush=True,
+    )
+    if max_windows_per_function is not None:
+        print(
+            f"Using at most {max_windows_per_function} sampled windows per function",
+            flush=True,
+        )
     class_weights = torch.tensor(
         [
             total_count / (2 * negative_count) if negative_count else 0.0,
@@ -71,17 +86,27 @@ def train(
         model.train()
         weighted_loss_total = 0.0
         total = 0
-        for batch in iter_window_parser_batches(
+        batches = iter_window_parser_batches(
             train_path,
             model.tokenizer,
             max_length=model.config.max_length,
             batch_size=batch_size,
-        ):
+            progress=True,
+            max_windows_per_function=max_windows_per_function,
+        )
+        for batch_number, batch in enumerate(batches, start=1):
             input_ids, attention_mask, labels, window_counts = tensor_window_batch(
                 batch, target_device
             )
+            show_progress = batch_number == 1 or batch_number % 10 == 0
+            if show_progress:
+                print(
+                    f"Training batch {batch_number}: "
+                    f"{labels.numel()} functions, {input_ids.shape[0]} windows",
+                    flush=True,
+                )
             optimizer.zero_grad(set_to_none=True)
-            logits = model(input_ids, attention_mask)
+            logits = model(input_ids, attention_mask, progress=show_progress)
             probabilities = aggregate_window_probabilities(logits, window_counts)
             loss = F.nll_loss(
                 probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log(),
@@ -93,11 +118,23 @@ def train(
             optimizer.step()
             weighted_loss_total += loss.item() * labels.numel()
             total += labels.numel()
+            if show_progress:
+                print(
+                    f"Completed training batch {batch_number} "
+                    f"({total} functions trained)",
+                    flush=True,
+                )
 
         if total == 0:
             raise ValueError(f"No training records found in {train_path}")
+        print(f"Starting validation for epoch {epoch + 1}", flush=True)
         validation_metrics = run_evaluation(
-            model, val_path, batch_size, target_device
+            model,
+            val_path,
+            batch_size,
+            target_device,
+            progress=True,
+            max_windows_per_function=max_windows_per_function,
         )
         metrics = {
             "epoch": float(epoch + 1),
@@ -114,7 +151,14 @@ def train(
         )
 
     test_metrics = (
-        run_evaluation(model, test_path, batch_size, target_device)
+        run_evaluation(
+            model,
+            test_path,
+            batch_size,
+            target_device,
+            progress=True,
+            max_windows_per_function=max_windows_per_function,
+        )
         if test_path is not None
         else None
     )

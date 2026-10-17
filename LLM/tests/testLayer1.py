@@ -6,6 +6,7 @@ from LLM.layer1_data_ingestion import (
     _read_records,
     count_targets,
     iter_parser_batches,
+    iter_window_parser_batches,
     parser,
 )
 from LLM.layer2_tokenization import ByteCodeTokenizer
@@ -86,6 +87,19 @@ def test_layer_1() -> None:
             }
         )
         assert parsed_result["labels"] == [0, 1]
+
+        long_record = [{"func": "a" * 1000, "target": 1}]
+        capped_batch = next(
+            iter_window_parser_batches(
+                long_record,
+                tokenizer,
+                max_length=128,
+                batch_size=1,
+                max_windows_per_function=3,
+            )
+        )
+        assert capped_batch["window_counts"] == [3]
+        assert len(capped_batch["input_ids"]) == 3
 
 
 if __name__ == "__main__":

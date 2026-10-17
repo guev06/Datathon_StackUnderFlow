@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from os import PathLike
 from typing import Any
@@ -110,25 +111,50 @@ def iter_window_parser_batches(
     tokenizer: Tokenizer,
     max_length: int = 128,
     batch_size: int = 2,
+    progress: bool = False,
+    max_windows_per_function: int | None = None,
 ) -> Iterator[dict[str, list[Any]]]:
     """Yield all windows for each function, retaining per-function labels."""
     if max_length < 3:
         raise ValueError("max_length must be at least 3")
     if batch_size < 1:
         raise ValueError("batch_size must be at least 1")
+    if max_windows_per_function is not None and max_windows_per_function < 1:
+        raise ValueError("max_windows_per_function must be at least 1")
 
     functions: list[str] = []
     labels: list[int] = []
+    batch_number = 0
 
     def tokenize_batch() -> dict[str, list[Any]]:
-        windowed_functions = [
-            source_windows(function, max_length) for function in functions
-        ]
+        nonlocal batch_number
+        batch_number += 1
+        if progress and (batch_number == 1 or batch_number % 10 == 0):
+            print(
+                f"Preparing data batch {batch_number}: "
+                f"{len(functions)} functions",
+                flush=True,
+            )
+        windowed_functions = []
+        for function in functions:
+            windows = source_windows(function, max_length)
+            if (
+                max_windows_per_function is not None
+                and len(windows) > max_windows_per_function
+            ):
+                windows = random.sample(windows, max_windows_per_function)
+            windowed_functions.append(windows)
         flattened_windows = [
             window
             for windows in windowed_functions
             for window in windows
         ]
+        if progress and (batch_number == 1 or batch_number % 10 == 0):
+            print(
+                f"Tokenizing data batch {batch_number}: "
+                f"{len(flattened_windows)} windows",
+                flush=True,
+            )
         encoded = tokenizer(
             flattened_windows,
             truncation=True,

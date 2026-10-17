@@ -14,6 +14,10 @@ from LLM.layer5_classification import VulnerabilityClassifier
 def default_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
+    if hasattr(torch, "accelerator") and torch.accelerator.is_available():
+        accelerator = torch.accelerator.current_accelerator(check_available=True)
+        if accelerator is not None:
+            return accelerator
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
@@ -65,6 +69,8 @@ def run_evaluation(
     data: str | PathLike[str],
     batch_size: int,
     device: torch.device,
+    progress: bool = False,
+    max_windows_per_function: int | None = None,
 ) -> dict[str, float | int]:
     model.eval()
     loss_total = 0.0
@@ -75,17 +81,29 @@ def run_evaluation(
     false_negative = 0
     true_negative = 0
 
+    batches = iter_window_parser_batches(
+        data,
+        model.tokenizer,
+        max_length=model.config.max_length,
+        batch_size=batch_size,
+        progress=progress,
+        max_windows_per_function=max_windows_per_function,
+    )
     with torch.inference_mode():
-        for batch in iter_window_parser_batches(
-            data,
-            model.tokenizer,
-            max_length=model.config.max_length,
-            batch_size=batch_size,
-        ):
+        for batch_number, batch in enumerate(batches, start=1):
             input_ids, attention_mask, labels, window_counts = tensor_window_batch(
                 batch, device
             )
-            logits = model(input_ids, attention_mask)
+            show_progress = progress and (
+                batch_number == 1 or batch_number % 10 == 0
+            )
+            if show_progress:
+                print(
+                    f"Evaluation batch {batch_number}: "
+                    f"{labels.numel()} functions, {input_ids.shape[0]} windows",
+                    flush=True,
+                )
+            logits = model(input_ids, attention_mask, progress=show_progress)
             probabilities = aggregate_window_probabilities(logits, window_counts)
             predictions = probabilities.argmax(dim=-1)
             loss_total += F.nll_loss(
@@ -99,6 +117,12 @@ def run_evaluation(
             false_negative += int(((predictions == 0) & (labels == 1)).sum().item())
             true_negative += int(((predictions == 0) & (labels == 0)).sum().item())
             total += labels.numel()
+            if show_progress:
+                print(
+                    f"Completed evaluation batch {batch_number} "
+                    f"({total} functions evaluated)",
+                    flush=True,
+                )
 
     if total == 0:
         raise ValueError(f"No evaluation records found in {data}")
