@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from os import PathLike
 from pathlib import Path
 from typing import Any
 
@@ -62,21 +63,22 @@ def latest_run(runs_directory: Path) -> Path:
     return max(runs, key=lambda path: int(path.name.removeprefix("run")))
 
 
-def test_model(
-    checkpoint: Path,
-    test_data: Path,
-    limit: int,
-) -> None:
-    device = default_device()
-    model = VulnerabilityClassifier.load_checkpoint(checkpoint, map_location=device)
-    model.to(device)
-
+def testModel(
+    model: VulnerabilityClassifier,
+    testset: str | PathLike[str],
+    limit: int = 0,
+) -> dict[str, Any]:
+    """Evaluate a model instance against a PrimeVul JSONL test set."""
+    if limit < 0:
+        raise ValueError("limit must be 0 or a positive integer")
+    test_path = Path(testset)
+    model.eval()
     total = 0
     correct = 0
     true_counts = [0, 0]
     predicted_counts = [0, 0]
     confusion = [[0, 0], [0, 0]]
-    with test_data.open(encoding="utf-8") as records:
+    with test_path.open(encoding="utf-8") as records:
         for line_number, line in enumerate(records, start=1):
             if limit and total >= limit:
                 break
@@ -84,7 +86,7 @@ def test_model(
                 record: Any = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(
-                    f"Invalid JSON on line {line_number} of {test_data}"
+                    f"Invalid JSON on line {line_number} of {test_path}"
                 ) from exc
             if not isinstance(record, dict):
                 raise ValueError(f"Expected a JSON object on line {line_number}")
@@ -123,62 +125,27 @@ def test_model(
             )
 
     if total == 0:
-        raise ValueError(f"No test records found in {test_data}")
-    print(
-        json.dumps(
-            {
-                "metrics": summarize_predictions(
-                    "mean class probabilities across all byte windows",
-                    true_counts,
-                    predicted_counts,
-                    confusion,
-                ),
-                "correct": correct,
-            },
-            indent=2,
-        )
-    )
+        raise ValueError(f"No test records found in {test_path}")
+    results = {
+        "metrics": summarize_predictions(
+            "mean class probabilities across all byte windows",
+            true_counts,
+            predicted_counts,
+            confusion,
+        ),
+        "correct": correct,
+    }
+    print(json.dumps(results, indent=2))
+    return results
 
 
-def main() -> None:
-    project_root = Path(__file__).resolve().parents[2]
-    parser = argparse.ArgumentParser(
-        description="Run a saved vulnerability model on PrimeVul test examples."
-    )
-    parser.add_argument(
-        "--run",
-        help="Run folder name, such as run3. Defaults to the latest run.",
-    )
-    parser.add_argument(
-        "--data",
-        type=Path,
-        default=project_root / "assets/primevul/primevul_test_paired.jsonl",
-        help="JSONL test file (defaults to the smaller paired PrimeVul test split).",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=10,
-        help="Number of examples to test; use 0 to test the full file.",
-    )
-    args = parser.parse_args()
-    if args.limit < 0:
-        parser.error("--limit must be 0 or a positive integer")
-
-    runs_directory = project_root / "LLM/runs"
-    run_directory = (
-        runs_directory / args.run if args.run else latest_run(runs_directory)
-    )
-    if args.run and not re.fullmatch(r"run\d+", args.run):
-        parser.error("--run must have the form runN, for example run3")
-    checkpoint = run_directory / "model.pt"
-    if not checkpoint.is_file():
-        raise FileNotFoundError(f"Model checkpoint not found: {checkpoint}")
-
-    print(f"Loading model: {checkpoint}")
-    print(f"Testing with: {args.data}")
-    test_model(checkpoint, args.data, args.limit)
+def test_model(
+    model: VulnerabilityClassifier,
+    testset: str | PathLike[str],
+    limit: int = 0,
+) -> dict[str, Any]:
+    """Snake-case alias for :func:`testModel`."""
+    return testModel(model, testset, limit)
 
 
-if __name__ == "__main__":
-    main()
+test_model(VulnerabilityClassifier(), "assets/primevul/primevul_test.jsonl", limit=10)
