@@ -1,0 +1,16 @@
+.how { padding: 96px 0; border-top: 1px solid var(--border); background: var(--bg-raised); }
+.how-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
+.steps li { display: flex; gap: 20px; }
+.step-n {
+  flex: none; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px;
+  background: var(--grad-soft); border: 1px solid var(--border);
+}
+.steps h3 { margin: 4px 0 4px; font-size: 15px; font-weight: 600; }
+.steps p { margin: 0; color: var(--text-muted); font-size: 14px; }
+.how-terminal pre { margin: 0; font-size: 12.5px; line-height: 1.9; white-space: pre-wrap; }
+.t-faint { color: var(--text-faint); }
+.t-ok { color: #6aa86a; }
+.t-link { background: var(--grad-accent); padding: 1px 6px; border-radius: 4px; }
+@media (max-width: 900px) { .how-inner { grid-template-columns: 1fr; } }

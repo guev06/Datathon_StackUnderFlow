@@ -1,0 +1,42 @@
+.repo-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  position: relative;
+}
+.repo-input::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--grad-accent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+}
+.repo-input:focus-within::before { opacity: 1; }
+.repo-input-icon { color: var(--text-faint); display: flex; }
+.repo-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+}
+.repo-input input::placeholder { color: var(--text-faint); }
+.repo-input.compact { box-shadow: none; max-width: 440px; padding: 4px 4px 4px 14px; }
+.repo-input.compact .btn { height: 32px; }

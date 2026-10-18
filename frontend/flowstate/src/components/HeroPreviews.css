@@ -1,0 +1,74 @@
+.hero-previews {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hp { position: absolute; animation: float 9s ease-in-out infinite; }
+.hp-flow { width: 300px; left: 3%; top: 54%; }
+.hp-code { width: 360px; right: 3%; top: 50%; animation-delay: -3s; }
+.hp-trace { width: 220px; right: 3%; top: 8%; animation-delay: -6s; }
+.hp-stat {
+  left: 7%;
+  top: 18%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(251, 250, 247, 0.9);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--text-muted);
+  animation-delay: -1.5s;
+}
+.hp-stat strong { color: var(--text); font-weight: 600; }
+.stat-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #9fcf9f;
+  box-shadow: 0 0 0 4px rgba(159, 207, 159, .25);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Mini flow graph */
+.mini-flow { width: 100%; display: block; }
+.mini-edge {
+  fill: none;
+  stroke: #b8b2a5;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
+  animation: dash 1.2s linear infinite;
+}
+@keyframes dash { to { stroke-dashoffset: -16; } }
+.mini-node text { font-family: var(--font-mono); font-size: 8.5px; fill: var(--text); }
+.mini-node.active rect:first-child { stroke: #c99aa6; stroke-width: 1.5; }
+
+/* Code peek */
+.code-peek { margin: 0; font-size: 11.5px; line-height: 1.75; overflow: hidden; }
+.code-peek div { white-space: pre; padding: 0 6px; border-radius: 4px; }
+.code-peek .ln { display: inline-block; width: 26px; color: var(--text-faint); }
+.code-peek .hl { background: linear-gradient(90deg, rgba(243, 214, 220, .8), rgba(226, 212, 240, .5)); }
+
+/* Trace */
+.trace { list-style: none; margin: 0; padding: 0; position: relative; font-size: 11.5px; }
+.trace::before {
+  content: ''; position: absolute; left: 4px; top: 8px; bottom: 8px;
+  width: 1px; background: var(--border-strong);
+}
+.trace li {
+  display: flex; align-items: center; gap: 10px; padding: 4px 0;
+  animation: pulse 2.6s ease-in-out infinite;
+}
+.trace-dot { width: 9px; height: 9px; border-radius: 50%; position: relative; border: 1px solid rgba(43,42,39,.15); }
+@keyframes pulse { 0%, 100% { opacity: .55; } 20% { opacity: 1; } }
+
+@media (max-width: 1100px) {
+  .hp-flow, .hp-trace { display: none; }
+  .hero-previews { position: relative; inset: auto; display: flex; justify-content: center; margin-top: 48px; }
+  .hp { position: relative; left: auto; right: auto; top: auto; animation: none; }
+  .hp-code { width: min(360px, 100%); }
+  .hp-stat { display: none; }
+}
