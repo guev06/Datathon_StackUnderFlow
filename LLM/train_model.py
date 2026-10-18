@@ -3,6 +3,9 @@ from pathlib import Path
 from LLM.layer5_classification import VulnerabilityClassifier
 from LLM.training import train
 
+# i love when i get an IBM Z LINUX ONE HACKATHON AND I DONT GET A GPU TO TRAIN ON 
+# to any one who reads this, cpu "ai acccelerators" are useless
+# my macbook air trained faster than the supercomputer?
 
 def main() -> None:
     project_root = Path(__file__).resolve().parents[1]
@@ -11,7 +14,7 @@ def main() -> None:
         project_root / "assets/primevul/primevul_train.jsonl",
         project_root / "assets/primevul/primevul_valid.jsonl",
         test_data=project_root / "assets/primevul/primevul_test.jsonl",
-        epochs=10,
+        epochs=1,
     )
 
 

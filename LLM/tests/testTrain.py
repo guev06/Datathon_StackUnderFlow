@@ -10,6 +10,6 @@ train(
     data / "primevul_train_paired.jsonl",
     data / "primevul_valid_paired.jsonl",
     test_data=data / "primevul_test_paired.jsonl",
-    epochs=20,
+    epochs=5,
     batch_size=8,
 )

@@ -17,18 +17,69 @@ from LLM.layer5_classification import VulnerabilityClassifier
 from LLM.run_reporting import write_run_report
 
 
+def class_aware_contrastive_loss(
+    embeddings: torch.Tensor,
+    labels: torch.Tensor,
+    temperature: float = 0.1,
+) -> torch.Tensor:
+    """Pull same-label embeddings together and separate different-label embeddings."""
+    if embeddings.ndim != 2 or labels.ndim != 1:
+        raise ValueError("embeddings and labels must have shapes [batch, dim] and [batch]")
+    if embeddings.shape[0] != labels.shape[0]:
+        raise ValueError("embeddings and labels must have the same batch size")
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
+
+    if embeddings.shape[0] < 2:
+        return embeddings.sum() * 0.0
+
+    normalized = F.normalize(embeddings, dim=-1)
+    similarities = torch.matmul(normalized, normalized.T) / temperature
+    not_self = ~torch.eye(
+        embeddings.shape[0], dtype=torch.bool, device=embeddings.device
+    )
+    positives = labels[:, None].eq(labels[None, :]) & not_self
+    valid_anchors = positives.any(dim=1)
+    if not torch.any(valid_anchors):
+        return embeddings.sum() * 0.0
+
+    similarities = similarities.masked_fill(~not_self, float("-inf"))
+    log_probabilities = similarities - torch.logsumexp(
+        similarities, dim=1, keepdim=True
+    )
+    positive_log_probabilities = log_probabilities.masked_fill(~positives, 0.0)
+    positive_counts = positives.sum(dim=1).clamp_min(1)
+    anchor_losses = -positive_log_probabilities.sum(dim=1) / positive_counts
+    return anchor_losses[valid_anchors].mean()
+
+
+def _aggregate_window_embeddings(
+    embeddings: torch.Tensor, window_counts: list[int]
+) -> torch.Tensor:
+    if any(count < 1 for count in window_counts):
+        raise ValueError("Each source function must have at least one window")
+    if sum(window_counts) != embeddings.shape[0]:
+        raise ValueError("window_counts must sum to the number of window embeddings")
+    return torch.stack(
+        [group.mean(dim=0) for group in torch.split(embeddings, window_counts)]
+    )
+
+
 def train(
     model: VulnerabilityClassifier,
     train_data: str | PathLike[str],
     val_data: str | PathLike[str],
     epochs: int = 10,
-    batch_size: int = 2,
+    batch_size: int = 8,
     learning_rate: float = 3e-4,
     device: str | torch.device | None = None,
     test_data: str | PathLike[str] | None = None,
-    max_windows_per_function: int | None = 8,
+    max_windows_per_function: int | None = 2,
+    gradient_accumulation_steps: int = 2,
+    lm_loss_weight: float = 0.02,
+    contrastive_loss_weight: float = 0.1,
 ) -> list[dict[str, float]]:
-    """Train on PrimeVul with a per-function window cap and save run artifacts."""
+    """Fine-tune on PrimeVul and save a checkpoint and reports in ``LLM/runs``."""
     if epochs < 1:
         raise ValueError("epochs must be at least 1")
     if batch_size < 1:
@@ -37,6 +88,10 @@ def train(
         raise ValueError("learning_rate must be positive")
     if max_windows_per_function is not None and max_windows_per_function < 1:
         raise ValueError("max_windows_per_function must be at least 1")
+    if gradient_accumulation_steps < 1:
+        raise ValueError("gradient_accumulation_steps must be at least 1")
+    if lm_loss_weight < 0 or contrastive_loss_weight < 0:
+        raise ValueError("auxiliary loss weights must be non-negative")
 
     train_path = Path(train_data)
     val_path = Path(val_data)
@@ -70,6 +125,11 @@ def train(
             f"Using at most {max_windows_per_function} sampled windows per function",
             flush=True,
         )
+    print(
+        f"Effective function batch size: about "
+        f"{batch_size * gradient_accumulation_steps}",
+        flush=True,
+    )
     class_weights = torch.tensor(
         [
             total_count / (2 * negative_count) if negative_count else 0.0,
@@ -85,7 +145,12 @@ def train(
         print(f"Epoch {epoch + 1}/{epochs} - Training on {total_count} records")
         model.train()
         weighted_loss_total = 0.0
+        classification_loss_total = 0.0
+        language_model_loss_total = 0.0
+        contrastive_loss_total = 0.0
         total = 0
+        pending_batches = 0
+        optimizer.zero_grad(set_to_none=True)
         batches = iter_window_parser_batches(
             train_path,
             model.tokenizer,
@@ -93,6 +158,8 @@ def train(
             batch_size=batch_size,
             progress=True,
             max_windows_per_function=max_windows_per_function,
+            shuffle=True,
+            random_seed=epoch,
         )
         for batch_number, batch in enumerate(batches, start=1):
             input_ids, attention_mask, labels, window_counts = tensor_window_batch(
@@ -105,19 +172,46 @@ def train(
                     f"{labels.numel()} functions, {input_ids.shape[0]} windows",
                     flush=True,
                 )
-            optimizer.zero_grad(set_to_none=True)
-            logits = model(input_ids, attention_mask, progress=show_progress)
+            logits, window_embeddings, lm_logits = model.forward_with_aux(
+                input_ids, attention_mask, progress=show_progress
+            )
             probabilities = aggregate_window_probabilities(logits, window_counts)
-            loss = F.nll_loss(
+            classification_loss = F.nll_loss(
                 probabilities.clamp_min(torch.finfo(probabilities.dtype).tiny).log(),
                 labels,
                 weight=class_weights,
             )
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            lm_targets = input_ids[:, 1:].clone()
+            lm_targets.masked_fill_(attention_mask[:, 1:] == 0, -100)
+            language_model_loss = F.cross_entropy(
+                lm_logits[:, :-1, :].reshape(-1, model.config.vocab_size),
+                lm_targets.reshape(-1),
+                ignore_index=-100,
+            )
+            function_embeddings = _aggregate_window_embeddings(
+                window_embeddings, window_counts
+            )
+            contrastive_loss = class_aware_contrastive_loss(
+                function_embeddings, labels
+            )
+            loss = (
+                classification_loss
+                + lm_loss_weight * language_model_loss
+                + contrastive_loss_weight * contrastive_loss
+            )
+            (loss / gradient_accumulation_steps).backward()
+            pending_batches += 1
             weighted_loss_total += loss.item() * labels.numel()
+            classification_loss_total += classification_loss.item() * labels.numel()
+            language_model_loss_total += language_model_loss.item() * labels.numel()
+            contrastive_loss_total += contrastive_loss.item() * labels.numel()
             total += labels.numel()
+
+            if pending_batches == gradient_accumulation_steps:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                pending_batches = 0
             if show_progress:
                 print(
                     f"Completed training batch {batch_number} "
@@ -127,6 +221,14 @@ def train(
 
         if total == 0:
             raise ValueError(f"No training records found in {train_path}")
+        if pending_batches:
+            correction = gradient_accumulation_steps / pending_batches
+            for parameter in model.parameters():
+                if parameter.grad is not None:
+                    parameter.grad.mul_(correction)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+
         print(f"Starting validation for epoch {epoch + 1}", flush=True)
         validation_metrics = run_evaluation(
             model,
@@ -135,10 +237,14 @@ def train(
             target_device,
             progress=True,
             max_windows_per_function=max_windows_per_function,
+            sampling_seed=0,
         )
         metrics = {
             "epoch": float(epoch + 1),
             "train_loss": weighted_loss_total / total,
+            "train_classification_loss": classification_loss_total / total,
+            "train_lm_loss": language_model_loss_total / total,
+            "train_contrastive_loss": contrastive_loss_total / total,
             "validation_loss": float(validation_metrics["loss"]),
             "validation_accuracy": float(validation_metrics["accuracy"]),
         }
@@ -158,6 +264,7 @@ def train(
             target_device,
             progress=True,
             max_windows_per_function=max_windows_per_function,
+            sampling_seed=0,
         )
         if test_path is not None
         else None

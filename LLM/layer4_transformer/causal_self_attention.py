@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
@@ -35,19 +33,22 @@ class CausalSelfAttention(nn.Module):
         key = _apply_rotary_embedding(split_heads(key), self.rope_theta)
         value = split_heads(value)
 
-        scores = torch.matmul(query, key.transpose(-2, -1))
-        scores = scores / math.sqrt(self.head_dimension)
         causal_mask = torch.ones(
             sequence_length,
             sequence_length,
             device=values.device,
             dtype=torch.bool,
-        ).triu(diagonal=1)
-        padding_mask = attention_mask[:, None, None, :].eq(0)
-        scores = scores.masked_fill(causal_mask[None, None, :, :], float("-inf"))
-        scores = scores.masked_fill(padding_mask, float("-inf"))
-        probabilities = self.dropout(F.softmax(scores, dim=-1))
-        attended = torch.matmul(probabilities, value)
+        ).tril()
+        attention_mask = causal_mask[None, None, :, :] & attention_mask[
+            :, None, None, :
+        ].bool()
+        attended = F.scaled_dot_product_attention(
+            query,
+            key,
+            value,
+            attn_mask=attention_mask,
+            dropout_p=self.dropout.p if self.training else 0.0,
+        )
         attended = attended.transpose(1, 2).contiguous().view(
             batch_size, sequence_length, dimension
         )

@@ -67,6 +67,7 @@ def run_evaluation(
     device: torch.device,
     progress: bool = False,
     max_windows_per_function: int | None = None,
+    sampling_seed: int | None = None,
 ) -> dict[str, float | int]:
     model.eval()
     loss_total = 0.0
@@ -84,6 +85,7 @@ def run_evaluation(
         batch_size=batch_size,
         progress=progress,
         max_windows_per_function=max_windows_per_function,
+        random_seed=sampling_seed,
     )
     with torch.inference_mode():
         for batch_number, batch in enumerate(batches, start=1):

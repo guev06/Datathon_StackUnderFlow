@@ -8,10 +8,10 @@ from LLM.layer2_tokenization import ByteCodeTokenizer
 @dataclass(frozen=True)
 class DecoderConfig:
     vocab_size: int = ByteCodeTokenizer.vocab_size
-    max_length: int = 128
-    d_model: int = 32
-    num_heads: int = 4
-    num_layers: int = 2
+    max_length: int = 512
+    d_model: int = 256
+    num_heads: int = 8
+    num_layers: int = 6
     dropout: float = 0.1
     num_classes: int = 2
     rope_theta: float = 10000.0

@@ -8,6 +8,7 @@ from torch.nn import functional as F
 from LLM.layer2_tokenization import ByteCodeTokenizer
 from LLM.layer3_embeddings import DecoderConfig
 from LLM.layer5_classification import VulnerabilityClassifier
+from LLM.training import class_aware_contrastive_loss
 
 
 def test_layer_5() -> None:
@@ -81,6 +82,43 @@ def test_layer_5() -> None:
         }
     )
     assert full_logits.shape == (2, config.num_classes)
+    assert model.lm_head.weight is model.token_embeddings.weight
+
+    auxiliary_logits, pooled_embeddings, lm_logits = model.forward_with_aux(
+        input_ids, attention_mask
+    )
+    assert auxiliary_logits.shape == (2, config.num_classes)
+    assert pooled_embeddings.shape == (2, config.d_model)
+    assert lm_logits.shape == (
+        2,
+        config.max_length,
+        config.vocab_size,
+    )
+    next_token_targets = input_ids[:, 1:].clone()
+    next_token_targets.masked_fill_(attention_mask[:, 1:] == 0, -100)
+    auxiliary_loss = F.cross_entropy(
+        lm_logits[:, :-1, :].reshape(-1, config.vocab_size),
+        next_token_targets.reshape(-1),
+        ignore_index=-100,
+    )
+    combined_loss = F.cross_entropy(
+        auxiliary_logits, torch.tensor([0, 1])
+    ) + 0.02 * auxiliary_loss
+    combined_loss.backward()
+    assert model.classifier.weight.grad is not None
+    assert model.token_embeddings.weight.grad is not None
+
+    contrastive_embeddings = torch.tensor(
+        [[1.0, 0.0], [0.9, 0.1], [0.0, 1.0], [0.1, 0.9]],
+        requires_grad=True,
+    )
+    contrastive_labels = torch.tensor([0, 0, 1, 1])
+    contrastive_loss = class_aware_contrastive_loss(
+        contrastive_embeddings, contrastive_labels
+    )
+    contrastive_loss.backward()
+    assert torch.isfinite(contrastive_loss)
+    assert contrastive_embeddings.grad is not None
 
     prediction = json.loads(model.predict_json(source))
     print("\nmodel.predict_json(source):")
@@ -107,6 +145,11 @@ def test_layer_5() -> None:
         raise AssertionError("Expected non-binary attention mask to be rejected")
 
     with tempfile.TemporaryDirectory() as temporary_directory:
+        checkpoint_path = Path(temporary_directory) / "model.pt"
+        model.save_checkpoint(checkpoint_path)
+        restored_model = VulnerabilityClassifier.load_checkpoint(checkpoint_path)
+        assert restored_model.lm_head.weight is restored_model.token_embeddings.weight
+
         source_path = Path(temporary_directory) / "sample.c"
         source_path.write_text(source, encoding="utf-8")
         file_prediction = json.loads(model.predict_file_json(source_path))

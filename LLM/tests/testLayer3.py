@@ -8,6 +8,11 @@ from LLM.layer5_classification import VulnerabilityClassifier
 def test_layer_3() -> None:
     """Exercise token embeddings and rotary position encoding."""
     torch.manual_seed(3)
+    default_config = DecoderConfig()
+    assert default_config.d_model == 256
+    assert default_config.num_layers == 6
+    assert default_config.num_heads == 8
+    assert default_config.max_length == 512
     config = DecoderConfig(
         max_length=128,
         d_model=32,

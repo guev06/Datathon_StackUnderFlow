@@ -113,6 +113,8 @@ def iter_window_parser_batches(
     batch_size: int = 2,
     progress: bool = False,
     max_windows_per_function: int | None = None,
+    shuffle: bool = False,
+    random_seed: int | None = None,
 ) -> Iterator[dict[str, list[Any]]]:
     """Yield all windows for each function, retaining per-function labels."""
     if max_length < 3:
@@ -125,6 +127,7 @@ def iter_window_parser_batches(
     functions: list[str] = []
     labels: list[int] = []
     batch_number = 0
+    rng = random.Random(random_seed) if random_seed is not None else random
 
     def tokenize_batch() -> dict[str, list[Any]]:
         nonlocal batch_number
@@ -142,7 +145,7 @@ def iter_window_parser_batches(
                 max_windows_per_function is not None
                 and len(windows) > max_windows_per_function
             ):
-                windows = random.sample(windows, max_windows_per_function)
+                windows = rng.sample(windows, max_windows_per_function)
             windowed_functions.append(windows)
         flattened_windows = [
             window
@@ -176,7 +179,12 @@ def iter_window_parser_batches(
         labels.clear()
         return tokenized
 
-    for record_number, record in enumerate(_read_records(data), start=1):
+    records = _read_records(data)
+    if shuffle:
+        records = list(records)
+        rng.shuffle(records)
+
+    for record_number, record in enumerate(records, start=1):
         if not isinstance(record, Mapping):
             raise ValueError(f"Expected a JSON object for record {record_number}")
         function = record.get("func")
